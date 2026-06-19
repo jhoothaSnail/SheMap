@@ -1,0 +1,761 @@
+# PRODUCT AUDIT & FEATURE EXPANSION TASK
+
+I already have a complete Figma UI for a women's safety application called SafeHer.
+
+DO NOT redesign the existing visual style.
+
+DO NOT change the color palette.
+
+DO NOT change typography.
+
+DO NOT change branding.
+
+DO NOT rebuild the existing screens unless necessary.
+
+Your task is to behave like a Senior Product Designer, Startup Founder, Hackathon Judge, UX Researcher, and Safety Technology Expert.
+
+Analyze the existing UI and identify all missing functionality, missing screens, missing user flows, missing states, missing interactions, missing dashboards, missing data visualizations, and missing emergency features.
+
+The goal is to transform the current design into a hackathon-winning AI-powered Women's Safety Intelligence Platform.
+
+Assume the current UI is visually polished but functionally incomplete.
+
+Focus on feature completeness.
+
+Focus on user journeys.
+
+Focus on innovation.
+
+Focus on real-world usability.
+
+For every missing feature, create the required screens, components, flows, modals, alerts, states, and interactions.
+
+Do not leave functionality implied.
+
+Design everything required to demonstrate the idea during judging.
+
+---
+
+# PRODUCT VISION
+
+The platform exists to help women:
+
+* Navigate safer routes
+* Avoid unsafe areas
+* Predict future route safety
+* Access emergency assistance
+* Leverage community intelligence
+* Travel with greater confidence
+
+The platform should be viewed as:
+
+"Women's Safety Intelligence Network"
+
+NOT
+
+"Navigation App"
+
+---
+
+# CORE SYSTEM 1:
+
+# SAFE ROUTING ENGINE
+
+Verify that the following screens exist.
+
+If missing, create them.
+
+---
+
+Route Search Screen
+
+* Current Location
+* Destination
+* Recent Destinations
+* Saved Places
+* Home
+* Hostel
+* Workplace
+* College
+
+---
+
+Route Recommendation Screen
+
+Display:
+
+Fastest Route
+
+Safest Route
+
+Balanced Route
+
+Late Night Route
+
+Emergency Route
+
+Each route should show:
+
+* ETA
+* Distance
+* Safety Score
+* Confidence Score
+
+---
+
+Route Comparison Screen
+
+Allow users to compare routes.
+
+Display:
+
+Route A
+
+Route B
+
+Route C
+
+Compare:
+
+* Time
+* Safety
+* Crowd Activity
+* Lighting
+* Harassment Risk
+* Emergency Access
+
+---
+
+Route Explanation Screen
+
+Every route recommendation must be explainable.
+
+Display:
+
+Why route is safe.
+
+Why route is unsafe.
+
+Positive contributors.
+
+Negative contributors.
+
+No black-box scoring.
+
+---
+
+# CORE SYSTEM 2:
+
+# SAFETY INTELLIGENCE
+
+Verify all exist.
+
+Add if missing.
+
+---
+
+Safety Score Dashboard
+
+Display:
+
+Lighting Score
+
+Human Presence Score
+
+Isolation Score
+
+Crowd Quality Score
+
+Harassment Risk Score
+
+Safe Haven Score
+
+Community Trust Score
+
+Weather Risk Score
+
+Night Risk Score
+
+---
+
+Safety Forecast Screen
+
+Critical feature.
+
+Display:
+
+Current Safety
+
+Predicted Safety
+
+Predicted Risk Increase
+
+Timeline Forecast
+
+Example:
+
+6 PM → Safe
+
+8 PM → Moderate
+
+10 PM → Risky
+
+12 AM → Unsafe
+
+---
+
+Future Risk Analysis
+
+Display:
+
+Shops Closing
+
+Crowd Reduction
+
+Rain Forecast
+
+Public Transport Reduction
+
+Event Impact
+
+Each affecting future safety.
+
+---
+
+Confidence Score Screen
+
+Display:
+
+Safety Score
+
+Confidence %
+
+Data Sources Used
+
+Reasoning
+
+Reliability Indicator
+
+---
+
+# CORE SYSTEM 3:
+
+# WOMEN COMMUNITY NETWORK
+
+Verify all exist.
+
+Add if missing.
+
+---
+
+Community Feed
+
+Display:
+
+Latest Reports
+
+Trending Reports
+
+Verified Reports
+
+Nearby Reports
+
+Emergency Reports
+
+---
+
+Report Creation Screen
+
+Support:
+
+Catcalling
+
+Harassment
+
+Following
+
+Stalking
+
+Unsafe Crowd
+
+Dark Area
+
+Broken Streetlight
+
+Suspicious Person
+
+Unsafe Shortcut
+
+Drunk Individuals
+
+Photo Upload
+
+Video Upload
+
+Voice Note Upload
+
+Text Description
+
+Location
+
+Timestamp
+
+Severity Level
+
+---
+
+Community Voting System
+
+Every report must support:
+
+Upvote
+
+Downvote
+
+Report Validation
+
+Verification Badge
+
+Trust Rating
+
+---
+
+Report Ranking Algorithm Visualization
+
+Create a screen explaining:
+
+How reports are ranked.
+
+Factors:
+
+Freshness
+
+Upvotes
+
+Downvotes
+
+Credibility
+
+Severity
+
+Recent reports should surface first.
+
+---
+
+Report Lifecycle
+
+Create states:
+
+New
+
+Verified
+
+Trending
+
+Resolved
+
+Archived
+
+---
+
+# CORE SYSTEM 4:
+
+# WOMEN'S SAFETY REVIEWS
+
+Verify all exist.
+
+---
+
+Route Review System
+
+Users can submit:
+
+Safety Rating
+
+Comfort Rating
+
+Would Walk Again
+
+Would Recommend
+
+Late Night Safety Rating
+
+---
+
+Review Insights
+
+Display:
+
+Most Comfortable Routes
+
+Highest Rated Routes
+
+Unsafe After Dark Routes
+
+Community Recommendations
+
+---
+
+# CORE SYSTEM 5:
+
+# SAFETY HEATMAPS
+
+Verify all exist.
+
+---
+
+Harassment Heatmap
+
+Stalking Heatmap
+
+Dark Zone Heatmap
+
+Unsafe Area Heatmap
+
+Community Warning Heatmap
+
+Night Risk Heatmap
+
+Emergency Incident Heatmap
+
+---
+
+Heatmap Filters
+
+By:
+
+Time
+
+Date
+
+Severity
+
+Report Type
+
+Distance
+
+---
+
+# CORE SYSTEM 6:
+
+# EMERGENCY ECOSYSTEM
+
+THIS IS THE MOST IMPORTANT SECTION.
+
+Treat this as the flagship feature.
+
+If any emergency functionality is missing, add it.
+
+---
+
+Emergency Dashboard
+
+Large SOS Button
+
+Trusted Contacts
+
+Journey Tracking
+
+Nearby Safe Spots
+
+Emergency Resources
+
+---
+
+SOS Flow
+
+Activation
+
+Confirmation
+
+Emergency Broadcast
+
+Live Tracking
+
+Emergency Mode
+
+Evidence Collection
+
+---
+
+Trusted Contact Management
+
+Add Contact
+
+Priority Order
+
+Relationship Tag
+
+Emergency Preferences
+
+---
+
+Live Journey Monitoring
+
+Journey Started
+
+Journey Active
+
+Journey Complete
+
+Journey Delayed
+
+Journey Interrupted
+
+---
+
+Route Deviation Detection
+
+Critical feature.
+
+If user deviates:
+
+Display:
+
+Unexpected Route Change
+
+Are You Safe?
+
+YES
+
+NO
+
+Need Help
+
+---
+
+Escalation Workflow
+
+Level 1
+
+SOS Activated
+
+Level 2
+
+Trusted Contacts Alerted
+
+Level 3
+
+Live Tracking Shared
+
+Level 4
+
+Evidence Recording Started
+
+Level 5
+
+Emergency Services Recommended
+
+Visualize entire flow.
+
+---
+
+Safe Arrival Verification
+
+Journey Complete
+
+Arrival Confirmed
+
+Contacts Notified
+
+Timeline View
+
+---
+
+Safe Spot Discovery
+
+Show nearby:
+
+Police Stations
+
+Hospitals
+
+Pharmacies
+
+Petrol Pumps
+
+Women's Hostels
+
+Security Offices
+
+24/7 Stores
+
+---
+
+Evidence Protection Mode
+
+Audio Recording
+
+Video Recording
+
+Background Recording
+
+Cloud Backup
+
+Secure Upload
+
+Evidence Timeline
+
+---
+
+Emergency Companion Mode
+
+Create a complete journey companion interface.
+
+Display:
+
+Current Safety
+
+Nearest Safe Spot
+
+Nearest Hospital
+
+Nearest Police Station
+
+Live Route Status
+
+Safety Tips
+
+Emergency Access
+
+---
+
+# CORE SYSTEM 7:
+
+# TRUST & CREDIBILITY
+
+Verify all exist.
+
+---
+
+User Reputation System
+
+Display:
+
+Reports Submitted
+
+Verified Reports
+
+Trust Score
+
+Community Impact
+
+---
+
+Verified User System
+
+Trusted Contributor
+
+Community Guardian
+
+Safety Ambassador
+
+Badges
+
+---
+
+# CORE SYSTEM 8:
+
+# ANALYTICS
+
+Create screens if missing.
+
+---
+
+Personal Safety Dashboard
+
+Trips Completed
+
+Safe Trips
+
+Reports Submitted
+
+Community Contributions
+
+Safety Trends
+
+---
+
+City Safety Dashboard
+
+Most Safe Areas
+
+Most Unsafe Areas
+
+Most Reported Areas
+
+Trending Incidents
+
+---
+
+# CORE SYSTEM 9:
+
+# EMPTY STATES
+
+Add if missing.
+
+No Reports
+
+No Routes
+
+No Contacts
+
+No Reviews
+
+No Alerts
+
+No Incidents
+
+No Internet
+
+Location Disabled
+
+---
+
+# CORE SYSTEM 10:
+
+# EDGE CASES
+
+Design states for:
+
+No GPS
+
+Poor Network
+
+Emergency Contact Unreachable
+
+No Safe Route Available
+
+No Community Data
+
+Route Closed
+
+Extreme Weather
+
+---
+
+# FINAL TASK
+
+After auditing the design:
+
+1. Identify every missing feature.
+2. Generate all missing screens.
+3. Generate all missing flows.
+4. Generate all missing states.
+5. Generate all missing modals.
+6. Generate all missing dashboards.
+7. Generate all missing emergency workflows.
+8. Generate all missing community interactions.
+
+The final design should feel like a complete startup-ready product capable of winning a major hackathon.
+
+Prioritize:
+
+1. Emergency Protection Ecosystem
+2. AI Safety Prediction
+3. Community Intelligence Network
+4. Explainable Safety Routing
+
+Do not simplify functionality.
+
+Design for maximum feature completeness and hackathon impact.
