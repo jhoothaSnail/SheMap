@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.database import engine, Base
-from app.routes import auth, reports, journeys, contacts, safety, sos
+from app import models  # noqa: F401 — registers all models on Base before create_all
+from app.routes import auth, reports, journeys, contacts, safety, sos, maps, track
 from app.core.config import settings
 
 
@@ -36,6 +37,8 @@ app.include_router(journeys.router, prefix="/api/v1/journeys", tags=["Journeys"]
 app.include_router(contacts.router, prefix="/api/v1/contacts", tags=["Trusted Contacts"])
 app.include_router(safety.router,   prefix="/api/v1/safety",   tags=["Safety"])
 app.include_router(sos.router,      prefix="/api/v1/sos",       tags=["SOS & Emergency"])
+app.include_router(maps.router,     prefix="/api/v1/maps",      tags=["Maps & Routing"])
+app.include_router(track.router,    prefix="/api/v1",           tags=["Live Tracking"])
 
 
 @app.get("/", tags=["Health"])

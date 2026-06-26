@@ -1,95 +1,62 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronDown, CheckCircle2 } from "lucide-react";
-
-const ROUTES = [
-  {
-    name: "Safest",
-    color: "#10b981",
-    time: "18 min",
-    distance: "1.4 km",
-    safetyScore: 94,
-    crowd: "High",
-    lighting: "Excellent",
-    harassRisk: "Very Low",
-    emergencyAccess: "Excellent",
-    highlights: ["Well-lit entire route", "High foot traffic", "2 police stations nearby"],
-    warnings: [],
-  },
-  {
-    name: "Fastest",
-    color: "#f59e0b",
-    time: "11 min",
-    distance: "0.9 km",
-    safetyScore: 71,
-    crowd: "Moderate",
-    lighting: "Fair",
-    harassRisk: "Moderate",
-    emergencyAccess: "Good",
-    highlights: ["Shortest distance", "Near main road"],
-    warnings: ["1 harassment report nearby"],
-  },
-  {
-    name: "Busy",
-    color: "#c94076",
-    time: "15 min",
-    distance: "1.2 km",
-    safetyScore: 85,
-    crowd: "Very High",
-    lighting: "Good",
-    harassRisk: "Low",
-    emergencyAccess: "Very Good",
-    highlights: ["Shops open late", "High foot traffic"],
-    warnings: [],
-  },
-];
-
-const METRICS = [
-  { key: "time", label: "Travel Time" },
-  { key: "distance", label: "Distance" },
-  { key: "safetyScore", label: "Safety Score" },
-  { key: "crowd", label: "Crowd" },
-  { key: "lighting", label: "Lighting" },
-  { key: "harassRisk", label: "Harass. Risk" },
-  { key: "emergencyAccess", label: "Emergency" },
-];
-
-type RouteKey = typeof ROUTES[0];
-
-const QUALITY_COLORS: Record<string, string> = {
-  "Very Low": "#10b981", Low: "#10b981",
-  Moderate: "#f59e0b", High: "#f07c4a", "Very High": "#f07c4a",
-  Excellent: "#10b981", "Very Good": "#10b981", Good: "#f07c4a", Fair: "#f59e0b",
-};
-
-function CellValue({ metric, route }: { metric: string; route: RouteKey }) {
-  const val = route[metric as keyof RouteKey];
-  if (metric === "safetyScore") {
-    return (
-      <div className="flex flex-col items-center gap-1">
-        <span className="font-bold text-sm" style={{ color: route.color }}>{val}</span>
-        <div className="w-10 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(28,15,24,0.08)" }}>
-          <div className="h-full rounded-full" style={{ width: `${val}%`, background: route.color }} />
-        </div>
-      </div>
-    );
-  }
-  const textColor = QUALITY_COLORS[String(val)];
-  return (
-    <span className="text-[10px] font-semibold text-center block" style={{ color: textColor || "#1c0f18" }}>
-      {String(val)}
-    </span>
-  );
-}
+import { X, ChevronDown } from "lucide-react";
+import type { ScoredRoute } from "../api/api";
 
 interface RouteComparisonProps {
+  routes: ScoredRoute[];
   onClose: () => void;
   onSelect: (i: number) => void;
   activeRoute: number;
 }
 
-export function RouteComparison({ onClose, onSelect, activeRoute }: RouteComparisonProps) {
-  const [showExp, setShowExp] = useState<number | null>(null);
+function levelColor(level: ScoredRoute["level"]): string {
+  if (level === "safe") return "#10b981";
+  if (level === "moderate") return "#f59e0b";
+  return "#f43f5e";
+}
+
+function levelLabel(level: ScoredRoute["level"]): string {
+  if (level === "safe") return "Safe";
+  if (level === "moderate") return "Moderate";
+  if (level === "risky") return "Caution";
+  return "Unsafe";
+}
+
+function routeName(r: ScoredRoute, i: number): string {
+  return r.recommended ? "Safest" : `Route ${i + 1}`;
+}
+
+export function RouteComparison({ routes, onClose, onSelect, activeRoute }: RouteComparisonProps) {
+  const [showExp, setShowExp] = useState<number | null>(activeRoute);
+
+  const metrics: { key: keyof ScoredRoute | "level"; label: string }[] = [
+    { key: "eta_minutes", label: "Travel Time" },
+    { key: "distance_km", label: "Distance" },
+    { key: "safety_score", label: "Safety Score" },
+    { key: "level", label: "Safety Level" },
+  ];
+
+  const cellValue = (m: { key: string }, r: ScoredRoute) => {
+    if (m.key === "safety_score") {
+      const color = levelColor(r.level);
+      return (
+        <div className="flex flex-col items-center gap-1">
+          <span className="font-bold text-sm" style={{ color }}>{Math.round(r.safety_score)}</span>
+          <div className="w-10 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(28,15,24,0.08)" }}>
+            <div className="h-full rounded-full" style={{ width: `${r.safety_score}%`, background: color }} />
+          </div>
+        </div>
+      );
+    }
+    if (m.key === "eta_minutes") {
+      return <span className="text-[10px] font-semibold text-center block" style={{ color: "#1c0f18" }}>{Math.round(r.eta_minutes)} min</span>;
+    }
+    if (m.key === "distance_km") {
+      return <span className="text-[10px] font-semibold text-center block" style={{ color: "#1c0f18" }}>{r.distance_km} km</span>;
+    }
+    return <span className="text-[10px] font-semibold text-center block" style={{ color: levelColor(r.level) }}>{levelLabel(r.level)}</span>;
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center">
@@ -100,18 +67,17 @@ export function RouteComparison({ onClose, onSelect, activeRoute }: RouteCompari
         className="relative w-full max-w-sm rounded-t-3xl"
         style={{ maxHeight: "88vh", overflowY: "auto", scrollbarWidth: "none", background: "#faf4f7" }}
       >
-        {/* Sticky header — dark */}
+        {/* Sticky header */}
         <div
           className="sticky top-0 z-10 px-4 pt-5 pb-4"
-          style={{
-            background: "linear-gradient(135deg, #1c0f18, #2e1424)",
-            borderRadius: "24px 24px 0 0",
-          }}
+          style={{ background: "linear-gradient(135deg, #1c0f18, #2e1424)", borderRadius: "24px 24px 0 0" }}
         >
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-white font-bold">Compare Routes</h3>
-              <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Hyde Park → 42 Oak Street</p>
+              <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+                {routes.length} route{routes.length > 1 ? "s" : ""} ranked by safety
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -124,162 +90,122 @@ export function RouteComparison({ onClose, onSelect, activeRoute }: RouteCompari
         </div>
 
         <div className="p-4">
-          {/* Route selector headers */}
-          <div className="grid grid-cols-4 gap-1.5 mb-4">
-            <div />
-            {ROUTES.map((r, i) => (
-              <button
-                key={r.name}
-                onClick={() => { onSelect(i); onClose(); }}
-                className="rounded-xl p-2 text-center transition-all"
-                style={{
-                  background: activeRoute === i ? `${r.color}15` : "#ffffff",
-                  border: `2px solid ${activeRoute === i ? r.color : "rgba(28,15,24,0.09)"}`,
-                  boxShadow: activeRoute === i ? `0 2px 10px ${r.color}30` : "0 1px 3px rgba(28,15,24,0.05)",
-                }}
-              >
-                <div className="w-2.5 h-2.5 rounded-full mx-auto mb-1" style={{ background: r.color }} />
-                <span className="text-[10px] font-bold" style={{ color: r.color }}>{r.name}</span>
-                {activeRoute === i && (
-                  <div className="text-[9px] font-bold text-emerald-500 mt-0.5">✓ Active</div>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Comparison table */}
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{ border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 6px rgba(28,15,24,0.05)" }}
-          >
-            {METRICS.map((m, mi) => (
+          {routes.length === 0 ? (
+            <p className="text-sm text-center py-10" style={{ color: "#6e4a60" }}>No routes to compare yet.</p>
+          ) : (
+            <>
+              {/* Route selector headers */}
               <div
-                key={m.key}
-                className="grid grid-cols-4"
-                style={{ background: mi % 2 === 0 ? "#ffffff" : "rgba(28,15,24,0.02)" }}
+                className="grid gap-1.5 mb-4"
+                style={{ gridTemplateColumns: `1.2fr repeat(${routes.length}, 1fr)` }}
               >
-                <div className="px-3 py-3 flex items-center" style={{ borderRight: "1px solid rgba(28,15,24,0.07)" }}>
-                  <span className="text-[10px] font-semibold" style={{ color: "#6e4a60" }}>{m.label}</span>
-                </div>
-                {ROUTES.map((r, ri) => (
+                <div />
+                {routes.map((r, i) => {
+                  const color = levelColor(r.level);
+                  return (
+                    <button
+                      key={r.index}
+                      onClick={() => { onSelect(i); onClose(); }}
+                      className="rounded-xl p-2 text-center transition-all"
+                      style={{
+                        background: activeRoute === i ? `${color}15` : "#ffffff",
+                        border: `2px solid ${activeRoute === i ? color : "rgba(28,15,24,0.09)"}`,
+                        boxShadow: activeRoute === i ? `0 2px 10px ${color}30` : "0 1px 3px rgba(28,15,24,0.05)",
+                      }}
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full mx-auto mb-1" style={{ background: color }} />
+                      <span className="text-[10px] font-bold" style={{ color }}>{routeName(r, i)}</span>
+                      {activeRoute === i && <div className="text-[9px] font-bold text-emerald-500 mt-0.5">✓ Active</div>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Comparison table */}
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{ border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 6px rgba(28,15,24,0.05)" }}
+              >
+                {metrics.map((m, mi) => (
                   <div
-                    key={r.name}
-                    className="px-2 py-3 flex items-center justify-center"
-                    style={{ borderRight: ri < ROUTES.length - 1 ? "1px solid rgba(28,15,24,0.07)" : "none" }}
+                    key={m.key as string}
+                    className="grid"
+                    style={{
+                      gridTemplateColumns: `1.2fr repeat(${routes.length}, 1fr)`,
+                      background: mi % 2 === 0 ? "#ffffff" : "rgba(28,15,24,0.02)",
+                    }}
                   >
-                    <CellValue metric={m.key} route={r} />
+                    <div className="px-3 py-3 flex items-center" style={{ borderRight: "1px solid rgba(28,15,24,0.07)" }}>
+                      <span className="text-[10px] font-semibold" style={{ color: "#6e4a60" }}>{m.label}</span>
+                    </div>
+                    {routes.map((r, ri) => (
+                      <div
+                        key={r.index}
+                        className="px-2 py-3 flex items-center justify-center"
+                        style={{ borderRight: ri < routes.length - 1 ? "1px solid rgba(28,15,24,0.07)" : "none" }}
+                      >
+                        {cellValue(m as { key: string }, r)}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
-            ))}
-          </div>
 
-          {/* Why each route */}
-          <p className="text-foreground text-sm font-bold mt-5 mb-3">Why Each Route?</p>
-          <div className="space-y-2">
-            {ROUTES.map((r, i) => (
-              <div
-                key={r.name}
-                className="rounded-2xl overflow-hidden"
-                style={{
-                  background: "#ffffff",
-                  border: `1.5px solid ${showExp === i ? r.color + "55" : "rgba(28,15,24,0.09)"}`,
-                  boxShadow: showExp === i ? `0 2px 12px ${r.color}20` : "0 1px 3px rgba(28,15,24,0.04)",
-                }}
-              >
-                <button
-                  className="w-full flex items-center justify-between p-3.5"
-                  onClick={() => setShowExp(showExp === i ? null : i)}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: r.color }} />
-                    <span className="text-foreground text-sm font-bold">{r.name} Route</span>
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg"
-                      style={{ background: `${r.color}15`, color: r.color }}
+              {/* Why each route */}
+              <p className="text-foreground text-sm font-bold mt-5 mb-3">Why Each Route?</p>
+              <div className="space-y-2">
+                {routes.map((r, i) => {
+                  const color = levelColor(r.level);
+                  return (
+                    <div
+                      key={r.index}
+                      className="rounded-2xl overflow-hidden"
+                      style={{
+                        background: "#ffffff",
+                        border: `1.5px solid ${showExp === i ? color + "55" : "rgba(28,15,24,0.09)"}`,
+                        boxShadow: showExp === i ? `0 2px 12px ${color}20` : "0 1px 3px rgba(28,15,24,0.04)",
+                      }}
                     >
-                      {r.safetyScore}
-                    </span>
-                  </div>
-                  <ChevronDown
-                    size={14}
-                    className="text-muted-foreground transition-transform"
-                    style={{ transform: showExp === i ? "rotate(180deg)" : "none" }}
-                  />
-                </button>
-                <AnimatePresence>
-                  {showExp === i && (
-                    <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
-                      <div className="px-4 pb-4" style={{ borderTop: "1px solid rgba(28,15,24,0.07)" }}>
-                        {r.highlights.length > 0 && (
-                          <div className="mt-3 mb-2">
-                            <p className="text-[10px] font-bold text-emerald-600 mb-1.5">✅ Why it's good</p>
-                            {r.highlights.map((h) => (
-                              <p key={h} className="text-xs mb-1" style={{ color: "#6e4a60" }}>• {h}</p>
-                            ))}
-                          </div>
+                      <button className="w-full flex items-center justify-between p-3.5" onClick={() => setShowExp(showExp === i ? null : i)}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                          <span className="text-foreground text-sm font-bold">{routeName(r, i)} Route</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg" style={{ background: `${color}15`, color }}>
+                            {Math.round(r.safety_score)}
+                          </span>
+                        </div>
+                        <ChevronDown
+                          size={14}
+                          className="text-muted-foreground transition-transform"
+                          style={{ transform: showExp === i ? "rotate(180deg)" : "none" }}
+                        />
+                      </button>
+                      <AnimatePresence>
+                        {showExp === i && (
+                          <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} style={{ overflow: "hidden" }}>
+                            <div className="px-4 pb-4" style={{ borderTop: "1px solid rgba(28,15,24,0.07)" }}>
+                              <p className="text-xs leading-relaxed mt-3 mb-3" style={{ color: "#6e4a60" }}>
+                                {r.ai_explanation
+                                  ? r.ai_explanation
+                                  : `Safety score ${Math.round(r.safety_score)}/100 (${levelLabel(r.level)}), about ${Math.round(r.eta_minutes)} min over ${r.distance_km} km.`}
+                              </p>
+                              <button
+                                onClick={() => { onSelect(i); onClose(); }}
+                                className="w-full py-2.5 rounded-xl text-xs font-bold text-white"
+                                style={{ background: `linear-gradient(135deg, ${color}, ${color}bb)`, boxShadow: `0 3px 12px ${color}40` }}
+                              >
+                                Use {routeName(r, i)} Route
+                              </button>
+                            </div>
+                          </motion.div>
                         )}
-                        {r.warnings.length > 0 && (
-                          <div className="mb-2">
-                            <p className="text-[10px] font-bold mb-1.5" style={{ color: "#b45309" }}>⚠️ Watch out for</p>
-                            {r.warnings.map((w) => (
-                              <p key={w} className="text-xs" style={{ color: "#6e4a60" }}>• {w}</p>
-                            ))}
-                          </div>
-                        )}
-                        {r.warnings.length === 0 && r.highlights.length > 0 && (
-                          <p className="text-xs mt-1" style={{ color: "#6e4a60" }}>No active warnings on this route.</p>
-                        )}
-                        <button
-                          onClick={() => { onSelect(i); onClose(); }}
-                          className="mt-3 w-full py-2.5 rounded-xl text-xs font-bold text-white"
-                          style={{ background: `linear-gradient(135deg, ${r.color}, ${r.color}bb)`, boxShadow: `0 3px 12px ${r.color}40` }}
-                        >
-                          Use {r.name} Route
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ))}
-          </div>
-
-          {/* Special routes */}
-          <p className="text-foreground text-sm font-bold mt-5 mb-3">Special Routes</p>
-          <div className="space-y-2">
-            {[
-              { name: "Late Night Route", score: 88, desc: "Maximises lighting & populated streets after 10PM.", color: "#d94f86", time: "22 min" },
-              { name: "Emergency Route", score: 96, desc: "Passes 3 police stations & 2 hospitals.", color: "#f43f5e", time: "25 min" },
-            ].map((r) => (
-              <div
-                key={r.name}
-                className="rounded-2xl p-3.5 flex items-start gap-3"
-                style={{
-                  background: "#ffffff",
-                  border: `1.5px solid ${r.color}35`,
-                  boxShadow: `0 1px 6px ${r.color}15`,
-                }}
-              >
-                <div className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ background: r.color }} />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-foreground text-sm font-bold">{r.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs" style={{ color: "#6e4a60" }}>{r.time}</span>
-                      <span
-                        className="text-xs font-bold px-1.5 py-0.5 rounded-lg"
-                        style={{ background: `${r.color}15`, color: r.color }}
-                      >
-                        {r.score}
-                      </span>
+                      </AnimatePresence>
                     </div>
-                  </div>
-                  <p className="text-xs" style={{ color: "#6e4a60" }}>{r.desc}</p>
-                </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </motion.div>
     </div>

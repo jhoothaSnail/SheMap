@@ -52,7 +52,9 @@ def create_report(
 def list_reports(
     lat: Optional[float] = Query(None),
     lng: Optional[float] = Query(None),
-    radius_m: int = Query(default=1000, ge=100, le=10000),
+    # Up to ~300 km so callers can request district/state-wide feeds
+    # (e.g. for Trending/Verified) in addition to tight near-me radii.
+    radius_m: int = Query(default=1000, ge=100, le=300000),
     category: Optional[ReportCategory] = None,
     lifecycle: Optional[ReportLifecycle] = None,
     page: int = Query(default=1, ge=1),

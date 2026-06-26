@@ -1,42 +1,51 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Shield, Eye, Users, Zap, AlertTriangle, Home, Star, Cloud, Moon } from "lucide-react";
+import {
+  Shield, Eye, Users, Zap, AlertTriangle, Home, Star, Cloud, Moon, Loader2, MapPin,
+} from "lucide-react";
+import {
+  safetyApi, type SafetyScore, type SafetyForecast, type DimensionScores,
+} from "../api/api";
 
-const SCORES = [
-  { label: "Lighting", icon: Zap, score: 78, color: "#f59e0b", trend: "up" },
-  { label: "Human Presence", icon: Users, score: 85, color: "#f07c4a", trend: "up" },
-  { label: "Isolation", icon: Eye, score: 62, color: "#f43f5e", trend: "down" },
-  { label: "Crowd Quality", icon: Star, score: 80, color: "#10b981", trend: "stable" },
-  { label: "Harassment Risk", icon: AlertTriangle, score: 71, color: "#f43f5e", trend: "down" },
-  { label: "Safe Havens", icon: Home, score: 90, color: "#10b981", trend: "up" },
-  { label: "Community Trust", icon: Shield, score: 88, color: "#c94076", trend: "up" },
-  { label: "Weather Risk", icon: Cloud, score: 93, color: "#f07c4a", trend: "stable" },
-  { label: "Night Risk", icon: Moon, score: 55, color: "#f43f5e", trend: "down" },
+interface SafetyIntelligenceProps {
+  userPos: { lat: number; lng: number } | null;
+  areaLabel?: string;
+}
+
+// Map backend dimension keys -> display label + icon. Colors are derived from
+// the real score, not hardcoded.
+const DIMENSION_META: { key: keyof DimensionScores; label: string; icon: typeof Zap }[] = [
+  { key: "lighting_score",   label: "Lighting",        icon: Zap },
+  { key: "human_presence",   label: "Human Presence",  icon: Users },
+  { key: "isolation_score",  label: "Isolation",       icon: Eye },
+  { key: "crowd_quality",    label: "Crowd Quality",   icon: Star },
+  { key: "harassment_risk",  label: "Harassment Risk", icon: AlertTriangle },
+  { key: "safe_haven_score", label: "Safe Havens",     icon: Home },
+  { key: "community_trust",  label: "Community Trust",  icon: Shield },
+  { key: "weather_risk",     label: "Weather Risk",    icon: Cloud },
+  { key: "night_risk",       label: "Night Risk",      icon: Moon },
 ];
 
-const FORECAST = [
-  { time: "Now", label: "6 PM", level: "safe", score: 82, color: "#10b981" },
-  { time: "2h", label: "8 PM", level: "moderate", score: 67, color: "#f59e0b" },
-  { time: "4h", label: "10 PM", level: "risky", score: 48, color: "#f97316" },
-  { time: "6h", label: "12 AM", level: "unsafe", score: 31, color: "#f43f5e" },
-  { time: "8h", label: "2 AM", level: "unsafe", score: 24, color: "#f43f5e" },
-];
+function colorForScore(score: number): string {
+  if (score >= 80) return "#10b981";
+  if (score >= 65) return "#f59e0b";
+  if (score >= 45) return "#f97316";
+  return "#f43f5e";
+}
 
-const RISK_FACTORS = [
-  { icon: "🏪", label: "Shops Closing", impact: -12, time: "9 PM", detail: "Most retail closes, reducing foot traffic" },
-  { icon: "👥", label: "Crowd Reduction", impact: -18, time: "10 PM", detail: "Peak crowd leaves after shows & events" },
-  { icon: "🌧️", label: "Rain Forecast", impact: -8, time: "11 PM", detail: "Light rain expected, reduces street presence" },
-  { icon: "🚌", label: "Public Transport", impact: -14, time: "11:30 PM", detail: "Last buses at 11:40 PM on this route" },
-  { icon: "🎵", label: "Event Dispersal", impact: +6, time: "9 PM", detail: "Hyde Park concert ends, high foot traffic briefly" },
-];
+function levelColor(level: string): string {
+  return level === "safe" ? "#10b981"
+    : level === "moderate" ? "#f59e0b"
+    : level === "risky" ? "#f97316"
+    : "#f43f5e";
+}
 
-const DATA_SOURCES = [
-  { name: "Community Reports", count: 247, freshness: "2 min" },
-  { name: "Street Light Data", count: 1840, freshness: "1 hr" },
-  { name: "Transit APIs", count: 12, freshness: "Live" },
-  { name: "Weather Services", count: 3, freshness: "15 min" },
-  { name: "Crime Statistics", count: 8920, freshness: "Daily" },
-];
+function relativeTime(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  return `${Math.floor(s / 3600)} hr ago`;
+}
 
 function ScoreRing({ score, color, size = 36 }: { score: number; color: string; size?: number }) {
   const r = size / 2 - 4;
@@ -57,13 +66,9 @@ function ScoreRing({ score, color, size = 36 }: { score: number; color: string; 
 
 type SubView = "overview" | "forecast" | "confidence";
 
-// Shared sub-nav style used across all panels
 function SubNav({ options, active, onChange }: { options: { id: string; label: string }[]; active: string; onChange: (id: string) => void }) {
   return (
-    <div
-      className="flex gap-1 p-1 rounded-2xl"
-      style={{ background: "rgba(28,15,24,0.06)", border: "1px solid rgba(28,15,24,0.07)" }}
-    >
+    <div className="flex gap-1 p-1 rounded-2xl" style={{ background: "rgba(28,15,24,0.06)", border: "1px solid rgba(28,15,24,0.07)" }}>
       {options.map((opt) => (
         <button
           key={opt.id}
@@ -82,36 +87,83 @@ function SubNav({ options, active, onChange }: { options: { id: string; label: s
   );
 }
 
-export function SafetyIntelligence() {
+// Honest, data-derived time recommendations from the real forecast curve.
+function buildRecommendations(forecast: SafetyForecast | null) {
+  if (!forecast || forecast.forecast.length === 0) return [];
+  return forecast.forecast.map((p) => {
+    const c = levelColor(p.level);
+    const rec =
+      p.level === "safe" ? "Safe to walk. Most routes are clear."
+      : p.level === "moderate" ? "Prefer the Safest Route. Avoid isolated shortcuts."
+      : p.level === "risky" ? "Share live location. Stick to busy, well-lit streets."
+      : "Consider a cab. Share live location and avoid walking alone.";
+    const icon = p.level === "safe" ? "✅" : p.level === "moderate" ? "⚠️" : "🚨";
+    return {
+      time: p.time_label === "Now" ? "Now" : `In ${p.time_label.replace("+", "").replace("h", " hr")}`,
+      rec, color: c, bg: `${c}14`, border: `${c}40`, icon, score: p.predicted_score,
+    };
+  });
+}
+
+export function SafetyIntelligence({ userPos, areaLabel }: SafetyIntelligenceProps) {
   const [subView, setSubView] = useState<SubView>("overview");
   const [expandedFactor, setExpandedFactor] = useState<number | null>(null);
-  const overallScore = Math.round(SCORES.reduce((s, d) => s + d.score, 0) / SCORES.length);
-  const scoreColor = overallScore >= 80 ? "#10b981" : overallScore >= 60 ? "#f59e0b" : "#f43f5e";
+  const [score, setScore] = useState<SafetyScore | null>(null);
+  const [forecast, setForecast] = useState<SafetyForecast | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    if (!userPos) return;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      safetyApi.areaScore(userPos.lat, userPos.lng),
+      safetyApi.forecast(userPos.lat, userPos.lng),
+    ])
+      .then(([s, f]) => { setScore(s); setForecast(f); })
+      .catch((e: any) => setError(e?.message ?? "Couldn't load safety data."))
+      .finally(() => setLoading(false));
+  }, [userPos]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const overallScore = score ? Math.round(score.overall_score) : 0;
+  const scoreColor = colorForScore(overallScore);
+  const recommendations = buildRecommendations(forecast);
+
+  // --- Waiting / loading / error gates ---------------------------------
+  if (!userPos) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 px-6 text-center">
+        <MapPin size={26} className="text-primary" />
+        <p className="text-foreground font-bold text-sm">Waiting for your location</p>
+        <p className="text-xs text-muted-foreground">Enable location so we can analyze the safety of your area.</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex flex-col gap-4 p-4">
-
-      {/* Header hero — overall score + title on dark strip */}
-      <div
-        className="rounded-2xl p-4 flex items-center justify-between"
-        style={{
-          background: "linear-gradient(135deg, #1c0f18 0%, #2e1424 100%)",
-          boxShadow: "0 4px 24px rgba(28,15,24,0.2)",
-        }}
-      >
+      {/* Header hero */}
+      <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1c0f18 0%, #2e1424 100%)", boxShadow: "0 4px 24px rgba(28,15,24,0.2)" }}>
         <div>
           <p className="font-bold text-white" style={{ fontSize: "1rem" }}>Safety Intelligence</p>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Hyde Park · Updated 2 min ago</p>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+            {areaLabel || "Your current area"}{score ? ` · Updated ${relativeTime(score.computed_at)}` : ""}
+          </p>
           <div className="flex items-center gap-1.5 mt-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[11px] font-semibold" style={{ color: "#34d399" }}>All systems active</span>
+            <span className="text-[11px] font-semibold" style={{ color: "#34d399" }}>
+              {score ? `${score.data_points_used} community reports nearby` : "Analyzing…"}
+            </span>
           </div>
         </div>
         <div className="flex flex-col items-center">
           <div className="relative w-16 h-16">
             <ScoreRing score={overallScore} color={scoreColor} size={64} />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-lg font-bold" style={{ color: scoreColor }}>{overallScore}</span>
+              <span className="text-lg font-bold" style={{ color: scoreColor }}>{overallScore || "–"}</span>
               <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.4)" }}>/ 100</span>
             </div>
           </div>
@@ -119,208 +171,206 @@ export function SafetyIntelligence() {
         </div>
       </div>
 
-      {/* Sub-nav */}
-      <SubNav
-        options={[
-          { id: "overview", label: "Overview" },
-          { id: "forecast", label: "Forecast" },
-          { id: "confidence", label: "AI Confidence" },
-        ]}
-        active={subView}
-        onChange={(v) => setSubView(v as SubView)}
-      />
+      {loading && !score && (
+        <div className="flex flex-col items-center py-10 gap-2">
+          <Loader2 size={20} className="animate-spin text-primary" />
+          <p className="text-xs text-muted-foreground">Computing safety score…</p>
+        </div>
+      )}
 
-      {/* OVERVIEW */}
-      {subView === "overview" && (
+      {error && !loading && (
+        <div className="flex flex-col items-center py-8 gap-2">
+          <p className="text-foreground font-bold text-sm">Couldn't load safety data</p>
+          <p className="text-xs text-center text-muted-foreground">{error}</p>
+          <button onClick={load} className="text-xs font-bold px-4 py-2 rounded-xl" style={{ background: "rgba(201,64,118,0.1)", color: "#c94076" }}>Retry</button>
+        </div>
+      )}
+
+      {score && (
         <>
-          <div className="grid grid-cols-3 gap-2">
-            {SCORES.map((s) => {
-              const Icon = s.icon;
-              return (
-                <div
-                  key={s.label}
-                  className="rounded-2xl p-3 flex flex-col items-center gap-1.5"
-                  style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 4px rgba(28,15,24,0.05)" }}
-                >
-                  <div className="relative">
-                    <ScoreRing score={s.score} color={s.color} size={40} />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Icon size={12} style={{ color: s.color }} />
-                    </div>
-                  </div>
-                  <span className="font-bold text-sm" style={{ color: s.color }}>{s.score}</span>
-                  <span className="text-[9px] text-center leading-tight font-medium" style={{ color: "#6e4a60" }}>{s.label}</span>
-                  <span className="text-[9px] font-bold" style={{ color: s.trend === "up" ? "#10b981" : s.trend === "down" ? "#f43f5e" : "#6e4a60" }}>
-                    {s.trend === "up" ? "↑ Rising" : s.trend === "down" ? "↓ Falling" : "→ Stable"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <SubNav
+            options={[
+              { id: "overview", label: "Overview" },
+              { id: "forecast", label: "Forecast" },
+              { id: "confidence", label: "AI Confidence" },
+            ]}
+            active={subView}
+            onChange={(v) => setSubView(v as SubView)}
+          />
 
-          {/* Future Risk Factors */}
-          <div>
-            <p className="text-foreground text-sm font-bold mb-2">Future Risk Factors</p>
-            <div className="space-y-2">
-              {RISK_FACTORS.map((f, i) => (
-                <button
-                  key={i}
-                  onClick={() => setExpandedFactor(expandedFactor === i ? null : i)}
-                  className="w-full text-left rounded-2xl p-3 transition-all"
-                  style={{
-                    background: "#ffffff",
-                    border: "1.5px solid rgba(28,15,24,0.09)",
-                    boxShadow: "0 1px 4px rgba(28,15,24,0.04)",
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{f.icon}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-foreground text-sm font-semibold">{f.label}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium" style={{ color: "#6e4a60" }}>{f.time}</span>
-                          <span
-                            className="text-xs font-bold px-2 py-0.5 rounded-lg"
-                            style={{
-                              color: f.impact < 0 ? "#dc2626" : "#059669",
-                              background: f.impact < 0 ? "rgba(244,63,94,0.1)" : "rgba(16,185,129,0.1)",
-                            }}
-                          >
-                            {f.impact > 0 ? "+" : ""}{f.impact}
-                          </span>
+          {/* OVERVIEW */}
+          {subView === "overview" && (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {DIMENSION_META.map((d) => {
+                  const Icon = d.icon;
+                  const value = Math.round(score.dimensions[d.key]);
+                  const color = colorForScore(value);
+                  const label = value >= 80 ? "Good" : value >= 65 ? "Fair" : value >= 45 ? "Caution" : "Risk";
+                  return (
+                    <div key={d.key} className="rounded-2xl p-3 flex flex-col items-center gap-1.5" style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 4px rgba(28,15,24,0.05)" }}>
+                      <div className="relative">
+                        <ScoreRing score={value} color={color} size={40} />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Icon size={12} style={{ color }} />
                         </div>
                       </div>
-                      {expandedFactor === i && (
-                        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "#6e4a60" }}>{f.detail}</p>
-                      )}
+                      <span className="font-bold text-sm" style={{ color }}>{value}</span>
+                      <span className="text-[9px] text-center leading-tight font-medium" style={{ color: "#6e4a60" }}>{d.label}</span>
+                      <span className="text-[9px] font-bold" style={{ color }}>{label}</span>
                     </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* FORECAST */}
-      {subView === "forecast" && (
-        <>
-          <div
-            className="rounded-2xl p-4"
-            style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 8px rgba(28,15,24,0.05)" }}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(201,64,118,0.1)" }}>
-                <Moon size={13} className="text-primary" />
+                  );
+                })}
               </div>
-              <span className="text-foreground text-sm font-bold">Safety Forecast Tonight</span>
-            </div>
-            <div className="flex items-end gap-1 h-24 mb-3">
-              {FORECAST.map((f, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[9px] font-bold" style={{ color: f.color }}>{f.score}</span>
-                  <div className="w-full rounded-t-lg transition-all" style={{ height: `${f.score}%`, background: `${f.color}25`, border: `1.5px solid ${f.color}70` }} />
+
+              {score.ai_summary && (
+                <div className="rounded-2xl p-4" style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 4px rgba(28,15,24,0.04)" }}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Shield size={13} className="text-primary" />
+                    <span className="text-sm font-bold text-foreground">What this means</span>
+                  </div>
+                  <p className="text-xs leading-relaxed" style={{ color: "#6e4a60" }}>{score.ai_summary}</p>
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-1">
-              {FORECAST.map((f, i) => (
-                <div key={i} className="flex-1 text-center">
-                  <p className="text-[10px] font-semibold text-foreground">{f.label}</p>
-                  <p className="text-[9px] px-1 py-0.5 rounded-full mt-0.5 capitalize font-semibold" style={{ background: `${f.color}15`, color: f.color }}>
-                    {f.level}
+              )}
+
+              {/* Real risk factors from the forecast */}
+              {forecast && forecast.risk_factors.length > 0 && (
+                <div>
+                  <p className="text-foreground text-sm font-bold mb-2">Upcoming Risk Factors</p>
+                  <div className="space-y-2">
+                    {forecast.risk_factors.map((f, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setExpandedFactor(expandedFactor === i ? null : i)}
+                        className="w-full text-left rounded-2xl p-3 transition-all"
+                        style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 4px rgba(28,15,24,0.04)" }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg">{f.icon ?? "⚠️"}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-foreground text-sm font-semibold">{f.label}</span>
+                              <div className="flex items-center gap-2">
+                                {f.time && <span className="text-xs font-medium" style={{ color: "#6e4a60" }}>{f.time}</span>}
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ color: f.impact < 0 ? "#dc2626" : "#059669", background: f.impact < 0 ? "rgba(244,63,94,0.1)" : "rgba(16,185,129,0.1)" }}>
+                                  {f.impact > 0 ? "+" : ""}{f.impact}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* FORECAST */}
+          {subView === "forecast" && forecast && (
+            <>
+              <div className="rounded-2xl p-4" style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 8px rgba(28,15,24,0.05)" }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(201,64,118,0.1)" }}>
+                    <Moon size={13} className="text-primary" />
+                  </div>
+                  <span className="text-foreground text-sm font-bold">Safety Forecast (next hours)</span>
+                </div>
+                <div className="flex items-end gap-1 h-24 mb-3">
+                  {forecast.forecast.map((f, i) => {
+                    const c = levelColor(f.level);
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-bold" style={{ color: c }}>{Math.round(f.predicted_score)}</span>
+                        <div className="w-full rounded-t-lg transition-all" style={{ height: `${f.predicted_score}%`, background: `${c}25`, border: `1.5px solid ${c}70` }} />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-1">
+                  {forecast.forecast.map((f, i) => {
+                    const c = levelColor(f.level);
+                    const hourLabel = `${f.hour % 12 || 12}${f.hour < 12 ? "AM" : "PM"}`;
+                    return (
+                      <div key={i} className="flex-1 text-center">
+                        <p className="text-[10px] font-semibold text-foreground">{hourLabel}</p>
+                        <p className="text-[9px] px-1 py-0.5 rounded-full mt-0.5 capitalize font-semibold" style={{ background: `${c}15`, color: c }}>{f.level}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {forecast.ai_summary && (
+                <div className="rounded-2xl p-4" style={{ background: "rgba(201,64,118,0.06)", border: "1.5px solid rgba(201,64,118,0.18)" }}>
+                  <p className="text-xs leading-relaxed" style={{ color: "#6e4a60" }}>{forecast.ai_summary}</p>
+                </div>
+              )}
+
+              {recommendations.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-foreground text-sm font-bold">Time-Based Guidance</p>
+                  {recommendations.map((r, i) => (
+                    <div key={i} className="rounded-2xl p-3.5 flex items-start gap-3" style={{ background: r.bg, border: `1.5px solid ${r.border}` }}>
+                      <span className="text-base mt-0.5">{r.icon}</span>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: r.color }}>{r.time} · score {Math.round(r.score)}</p>
+                        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "#6e4a60" }}>{r.rec}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* CONFIDENCE */}
+          {subView === "confidence" && (
+            <>
+              <div className="rounded-2xl p-5" style={{ background: "linear-gradient(135deg, #1c0f18, #2e1424)", boxShadow: "0 4px 24px rgba(28,15,24,0.2)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-white text-sm font-bold">Confidence Score</span>
+                  <span className="text-3xl font-bold" style={{ color: "#c94076" }}>{Math.round(score.confidence_pct)}%</span>
+                </div>
+                <div className="w-full h-2.5 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.1)" }}>
+                  <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${score.confidence_pct}%` }} transition={{ duration: 1, ease: "easeOut" }} style={{ background: "linear-gradient(90deg, #c94076, #f07c4a)" }} />
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  Confidence grows with the amount of recent community data near you. Currently based on {score.data_points_used} report{score.data_points_used === 1 ? "" : "s"} within ~500m.
+                </p>
+              </div>
+
+              <div>
+                <p className="text-foreground text-sm font-bold mb-2">How this score is computed</p>
+                <div className="rounded-2xl p-4 space-y-2" style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 4px rgba(28,15,24,0.04)" }}>
+                  <p className="text-xs leading-relaxed" style={{ color: "#6e4a60" }}>
+                    The area score is a weighted blend of 9 safety dimensions. Each nearby community report adjusts the relevant dimensions based on its <b>category</b>, <b>severity</b>, and how <b>recent</b> it is (older reports count less). A <b>time-of-day</b> factor lowers lighting, isolation and night-risk dimensions after dark.
+                  </p>
+                  <p className="text-[11px] italic" style={{ color: "#9b7d8f" }}>
+                    Heuristic model based on real community reports + time of day. Not a prediction from external crime databases.
                   </p>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div className="space-y-2">
-            <p className="text-foreground text-sm font-bold">Time-Based Recommendations</p>
-            {[
-              { time: "Before 9 PM", rec: "Safe to walk. Most routes clear.", color: "#10b981", bg: "rgba(16,185,129,0.08)", border: "rgba(16,185,129,0.22)", icon: "✅" },
-              { time: "9 PM – 10 PM", rec: "Use Safest Route. Avoid park shortcuts.", color: "#b45309", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.25)", icon: "⚠️" },
-              { time: "After 10 PM", rec: "Take cab. Share live location. Avoid Oak St.", color: "#dc2626", bg: "rgba(244,63,94,0.08)", border: "rgba(244,63,94,0.25)", icon: "🚨" },
-            ].map((r) => (
-              <div
-                key={r.time}
-                className="rounded-2xl p-3.5 flex items-start gap-3"
-                style={{ background: r.bg, border: `1.5px solid ${r.border}` }}
-              >
-                <span className="text-base mt-0.5">{r.icon}</span>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: r.color }}>{r.time}</p>
-                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "#6e4a60" }}>{r.rec}</p>
+              {/* Top contributing dimensions (real) */}
+              <div>
+                <p className="text-foreground text-sm font-bold mb-2">Biggest factors right now</p>
+                <div className="space-y-2">
+                  {[...DIMENSION_META]
+                    .map((d) => ({ ...d, value: Math.round(score.dimensions[d.key]) }))
+                    .sort((a, b) => a.value - b.value)
+                    .slice(0, 3)
+                    .map((d) => (
+                      <div key={d.key} className="flex items-center justify-between rounded-2xl p-3.5" style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)" }}>
+                        <span className="text-foreground text-xs font-semibold">{d.label}</span>
+                        <span className="text-[11px] px-2.5 py-1 rounded-full font-bold" style={{ background: `${colorForScore(d.value)}18`, color: colorForScore(d.value) }}>{d.value}/100</span>
+                      </div>
+                    ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* CONFIDENCE */}
-      {subView === "confidence" && (
-        <>
-          {/* Hero confidence card */}
-          <div
-            className="rounded-2xl p-5"
-            style={{
-              background: "linear-gradient(135deg, #1c0f18, #2e1424)",
-              boxShadow: "0 4px 24px rgba(28,15,24,0.2)",
-            }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white text-sm font-bold">AI Confidence Score</span>
-              <span className="text-3xl font-bold" style={{ color: "#c94076" }}>87%</span>
-            </div>
-            <div className="w-full h-2.5 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.1)" }}>
-              <motion.div
-                className="h-full rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: "87%" }}
-                transition={{ duration: 1, ease: "easeOut" }}
-                style={{ background: "linear-gradient(90deg, #c94076, #f07c4a)" }}
-              />
-            </div>
-            <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
-              High confidence. Based on 5 data sources with recent community activity.
-            </p>
-          </div>
-
-          <div>
-            <p className="text-foreground text-sm font-bold mb-2">Data Sources Used</p>
-            <div className="space-y-2">
-              {DATA_SOURCES.map((ds) => (
-                <div
-                  key={ds.name}
-                  className="flex items-center justify-between rounded-2xl p-3.5"
-                  style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 4px rgba(28,15,24,0.04)" }}
-                >
-                  <div>
-                    <p className="text-foreground text-xs font-semibold">{ds.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "#6e4a60" }}>{ds.count.toLocaleString()} data points</p>
-                  </div>
-                  <span
-                    className="text-[10px] px-2.5 py-1 rounded-full font-bold"
-                    style={{ background: "rgba(201,64,118,0.1)", color: "#c94076", border: "1px solid rgba(201,64,118,0.2)" }}
-                  >
-                    {ds.freshness}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div
-            className="rounded-2xl p-4"
-            style={{ background: "#ffffff", border: "1.5px solid rgba(28,15,24,0.09)", boxShadow: "0 1px 4px rgba(28,15,24,0.04)" }}
-          >
-            <p className="text-sm font-bold text-foreground mb-2">Reasoning</p>
-            <p className="text-xs leading-relaxed" style={{ color: "#6e4a60" }}>
-              Score computed from weighted average of 9 dimensions. Community reports contribute 35% weight; infrastructure data 40%; historical patterns 25%. Recent reports from last 2 hours weighted 3× more heavily.
-            </p>
-          </div>
+            </>
+          )}
         </>
       )}
     </motion.div>

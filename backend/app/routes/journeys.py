@@ -126,6 +126,28 @@ def confirm_arrival(
     return journey
 
 
+@router.post("/{journey_id}/flag-delay", response_model=JourneyOut)
+def flag_delay(
+    journey_id: str,
+    current_user: FirebaseUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark an active journey as delayed (overdue) so watchers see 'running late'."""
+    journey = _get_own_journey(journey_id, current_user.uid, db)
+    if journey.status == JourneyStatus.active:
+        journey.status = JourneyStatus.delayed
+        db.add(journey)
+        db.add(JourneyEvent(
+            id=str(uuid.uuid4()),
+            journey_id=journey_id,
+            event_type="overdue_flagged",
+            note="Traveller is past expected arrival time",
+        ))
+        db.commit()
+        db.refresh(journey)
+    return journey
+
+
 @router.get("/active", response_model=JourneyOut)
 def get_active_journey(
     current_user: FirebaseUser = Depends(get_current_user),

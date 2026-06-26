@@ -25,12 +25,21 @@ class SOSTrigger(BaseModel):
     escalation_level: int = 1    # 1–5
 
 
+class AlertContact(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+
 class SOSResponse(BaseModel):
     sos_id: str
     escalation_level: int
     contacts_alerted: list[str]
     message: str
     timestamp: str
+    live_location_url: str
+    share_message: str
+    alert_contacts: list[AlertContact]
 
 
 class SafeSpotOut(BaseModel):
@@ -89,11 +98,25 @@ def trigger_sos(
     )
 
     alerted_names = []
+    alert_contacts: list[AlertContact] = []
     if body.escalation_level >= 2:
-        # Production: call Twilio SMS API here for each contact
+        # No paid provider: we hand the frontend everything it needs to dispatch
+        # the alert via the user's own WhatsApp / email (wa.me / mailto links).
         alerted_names = [c.name for c in contacts]
+        alert_contacts = [
+            AlertContact(name=c.name, phone=c.phone, email=c.email) for c in contacts
+        ]
 
     db.commit()
+
+    # A universally-openable live-location link (works without any API key).
+    live_location_url = (
+        f"https://www.openstreetmap.org/?mlat={body.latitude}&mlon={body.longitude}#map=18/{body.latitude}/{body.longitude}"
+    )
+    share_message = (
+        "SheMap SOS: I need help. This is my live location: "
+        f"{live_location_url}"
+    )
 
     level_messages = {
         1: "SOS recorded. Location logged and timestamped.",
@@ -109,6 +132,9 @@ def trigger_sos(
         contacts_alerted=alerted_names,
         message=level_messages.get(body.escalation_level, "SOS active."),
         timestamp=datetime.now(timezone.utc).isoformat(),
+        live_location_url=live_location_url,
+        share_message=share_message,
+        alert_contacts=alert_contacts,
     )
 
 
@@ -146,10 +172,16 @@ def nearby_safe_spots(
 ):
     """
     Returns nearby safe spots.
-    Production: calls Google Places API with type filters.
-    Demo: returns realistic mock data for the area.
+    Primary: real OSM POIs via Overpass (police, hospital, pharmacy, fuel, stores).
+    Fallback: realistic mock data if Overpass is unavailable.
     """
     import math
+
+    # Try real OSM data first.
+    from app.services import maps_service
+    real_spots = maps_service.find_safe_spots(lat, lng, radius_m)
+    if real_spots:
+        return [SafeSpotOut(**s) for s in real_spots]
 
     def _dist(lat2, lng2):
         R = 6_371_000

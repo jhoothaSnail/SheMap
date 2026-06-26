@@ -23,7 +23,11 @@ class LocationUpdate(BaseModel):
 class JourneyOut(BaseModel):
     id: str
     user_id: str
+    origin_lat: float
+    origin_lng: float
     origin_label: Optional[str]
+    dest_lat: float
+    dest_lng: float
     dest_label: Optional[str]
     route_type: str
     eta_minutes: Optional[float]
@@ -32,6 +36,7 @@ class JourneyOut(BaseModel):
     sos_triggered: bool
     safe_arrival_confirmed: bool
     started_at: datetime
+    expected_arrival: Optional[datetime]
     arrived_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
